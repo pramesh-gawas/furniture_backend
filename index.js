@@ -1,0 +1,26 @@
+const express = require("express");
+const app = express();
+const db = require("./db");
+require("dotenv").config({ path: ".env.local" });
+const cors = require("cors");
+const path = require("path");
+
+PORT = process.env.PORT || 8000;
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+app.use(express.json());
+
+const userRoutes = require("./routes/userRoutes");
+const shopRoutes = require("./routes/shopRoutes");
+// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/user", userRoutes);
+app.use("/shop", shopRoutes);
+app.listen(PORT, () => {
+  console.log(`listening on port ${PORT}`);
+});
