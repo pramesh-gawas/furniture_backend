@@ -6,6 +6,8 @@ const User = require("../models/user");
 const Order = require("../models/order");
 const multer = require("multer");
 const { put } = require("@vercel/blob");
+const Cart = require("../models/cart");
+const Wishlist = require("../models/wishlist");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -20,43 +22,166 @@ const checkAdminRole = async (userId) => {
 
 router.get("/productlist", async (req, res) => {
   try {
-    const productList = await Product.find();
-    console.log(productList);
-    if (!productList || productList.length == 0) {
+    const page = parseInt(req.query.page) || 1;
+    const { sort, category } = req.query;
+    const limit = 8;
+    const skip = (page - 1) * limit;
+
+    let filterQuery = {};
+    if (category && category !== "all") {
+      filterQuery.category = category;
+    }
+
+    let sortQuery = {};
+    if (sort === "asc") {
+      sortQuery.price = 1;
+    } else if (sort === "desc") {
+      sortQuery.price = -1;
+    } else {
+      sortQuery.createdAt = -1;
+    }
+    const totalProducts = await Product.countDocuments(filterQuery);
+    const productList = await Product.find(filterQuery)
+      .sort(sortQuery)
+      .skip(skip)
+      .limit(limit);
+
+    if (!productList || productList.length === 0) {
       return res.status(404).json({
-        message: "product list is empty or not found",
+        message: "No products found for this criteria",
         success: false,
       });
-    } else {
-      return res.status(200).json({
-        response: productList,
-        message: "product fetched",
-        success: true,
-      });
     }
+
+    return res.status(200).json({
+      response: productList,
+      currentPage: page,
+      totalPages: Math.ceil(totalProducts / limit),
+      totalItems: totalProducts,
+      message: "Products fetched successfully",
+      success: true,
+    });
   } catch (error) {
-    return res
-      .status(400)
-      .json({ message: "productList fetch failed", error, success: false });
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+      success: false,
+    });
+  }
+});
+
+router.get("/categories", async (req, res) => {
+  try {
+    const categories = await Product.distinct("category");
+    res.status(200).json({ success: true, response: categories });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete("/wishlist/remove/:id", jwtAuthMiddleWare, async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const updatedWishlist = await Wishlist.findOneAndUpdate(
+      { user: req.user._id },
+      { $pull: { products: productId } },
+      { new: true }
+    ).populate("products");
+
+    res.status(200).json({
+      success: true,
+      response: updatedWishlist ? updatedWishlist.products : [],
+      message: "Item removed from wishlist",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+//wishlist route
+router.post("/wishlist/add", jwtAuthMiddleWare, async (req, res) => {
+  try {
+    const { productId } = req.body;
+    const updatedWishlist = await Wishlist.findOneAndUpdate(
+      { user: req.user._id },
+      { $addToSet: { products: productId } },
+      { new: true, upsert: true }
+    ).populate("products");
+
+    res.status(200).json({
+      success: true,
+      response: updatedWishlist.products,
+      message: "Item added to wishlist",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
 router.get("/wishlist", jwtAuthMiddleWare, async (req, res) => {
   try {
-    const wishList = await Product.find().populate("createdBy", "-password");
+    const userWishList = await Wishlist.findOne({
+      user: req.user._id,
+    }).populate("products");
+
+    if (!userWishList) {
+      return res.status(200).json({
+        response: { products: [] },
+        message: "No wishlist found for this user",
+        success: true,
+      });
+    }
+
     return res.status(200).json({
-      response: wishList,
-      message: "wishList fetched",
+      response: userWishList,
+      message: "Wishlist fetched successfully",
       success: true,
     });
   } catch (error) {
-    return res
-      .status(400)
-      .json({ message: "wishlist fetch failed", error, success: false });
+    return res.status(500).json({
+      message: "Server error while fetching wishlist",
+      success: false,
+    });
+  }
+});
+//cart routes
+router.post("/cart/add", jwtAuthMiddleWare, async (req, res) => {
+  try {
+    const { productId, quantity = 1 } = req.body;
+    const userId = req.user._id;
+    const cart = await Cart.findOne({
+      user: userId,
+      "items.product": productId,
+    });
+
+    if (cart) {
+      const updatedCart = await Cart.findOneAndUpdate(
+        { user: userId, "items.product": productId },
+        { $inc: { "items.$.quantity": quantity } },
+        { new: true }
+      ).populate("items.product");
+      return res.status(200).json({
+        response: updatedCart.items,
+        updatedAt: updatedCart.updatedAt,
+        success: true,
+      });
+    }
+
+    const newCart = await Cart.findOneAndUpdate(
+      { user: userId },
+      { $push: { items: { product: productId, quantity } } },
+      { new: true, upsert: true }
+    ).populate("items.product");
+    res.status(200).json({
+      response: newCart,
+      updatedAt: updatedCart.updatedAt,
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get("/productdetail/:id", jwtAuthMiddleWare, async (req, res) => {
+router.get("/productdetail/:id", async (req, res) => {
   try {
     const productId = req.params.id;
     const productDetail = await Product.findById(productId);
@@ -81,7 +206,7 @@ router.post("/checkout", jwtAuthMiddleWare, async (req, res) => {
         success: false,
       });
     }
-    const userId = req.user.id;
+    const userId = req.user._id;
     if (!userId) {
       return res.status(404).json({
         message: "User not found",
