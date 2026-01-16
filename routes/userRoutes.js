@@ -28,7 +28,9 @@ router.post("/signup", async (req, res) => {
     console.log("data saved");
 
     const payload = {
-      response: response,
+      id: response.id,
+      email: response.email,
+      role: response.role,
     };
     const token = generateToken(payload);
     res.status(200).json({
@@ -84,7 +86,11 @@ router.post("/signin", async (req, res) => {
       return res.status(401).json({ message: "invalid email or password" });
     }
     const payload = {
-      user: user,
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+      },
     };
 
     const token = generateToken(payload);

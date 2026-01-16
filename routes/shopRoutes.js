@@ -173,11 +173,58 @@ router.post("/cart/add", jwtAuthMiddleWare, async (req, res) => {
     ).populate("items.product");
     res.status(200).json({
       response: newCart,
-      updatedAt: updatedCart.updatedAt,
+      updatedAt: newCart.updatedAt,
       success: true,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete(
+  "/cart/remove/:productId",
+  jwtAuthMiddleWare,
+  async (req, res) => {
+    try {
+      const cart = await Cart.findOneAndUpdate(
+        { user: req.user._id },
+        { $pull: { items: { product: req.params.productId } } },
+        { new: true }
+      ).populate("items.product");
+
+      res.status(200).json({ response: cart ? cart.items : [] });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+router.get("/cart", jwtAuthMiddleWare, async (req, res) => {
+  try {
+    const cart = await Cart.findOne({ user: req.user._id }).populate(
+      "items.product"
+    );
+    if (!cart) {
+      return res.status(200).json({ response: { items: [] } });
+    }
+    res.status(200).json({ response: cart });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/cart/update", jwtAuthMiddleWare, async (req, res) => {
+  const { productId, quantity } = req.body;
+  try {
+    const cart = await Cart.findOneAndUpdate(
+      { user: req.user._id, "items.product": productId },
+      { $set: { "items.$.quantity": quantity } },
+      { new: true }
+    ).populate("items.product");
+
+    res.status(200).json({ response: cart.items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
