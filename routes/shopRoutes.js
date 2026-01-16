@@ -148,39 +148,37 @@ router.post("/cart/add", jwtAuthMiddleWare, async (req, res) => {
   try {
     const { productId, quantity = 1 } = req.body;
     const userId = req.user._id;
-    const cart = await Cart.findOne({
+
+    const cartExistsWithItem = await Cart.findOne({
       user: userId,
       "items.product": productId,
     });
 
-    if (cart) {
-      const updatedCart = await Cart.findOneAndUpdate(
+    let finalCart;
+
+    if (cartExistsWithItem) {
+      finalCart = await Cart.findOneAndUpdate(
         { user: userId, "items.product": productId },
         { $inc: { "items.$.quantity": quantity } },
         { new: true }
       ).populate("items.product");
-      return res.status(200).json({
-        response: updatedCart.items,
-        updatedAt: updatedCart.updatedAt,
-        success: true,
-      });
+    } else {
+      finalCart = await Cart.findOneAndUpdate(
+        { user: userId },
+        { $push: { items: { product: productId, quantity } } },
+        { new: true, upsert: true }
+      ).populate("items.product");
     }
-
-    const newCart = await Cart.findOneAndUpdate(
-      { user: userId },
-      { $push: { items: { product: productId, quantity } } },
-      { new: true, upsert: true }
-    ).populate("items.product");
-    res.status(200).json({
-      response: newCart,
-      updatedAt: newCart.updatedAt,
+    return res.status(200).json({
+      response: finalCart.items,
+      updatedAt: finalCart.updatedAt,
       success: true,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Cart Error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
-
 router.delete(
   "/cart/remove/:productId",
   jwtAuthMiddleWare,
@@ -282,7 +280,7 @@ router.post(
   jwtAuthMiddleWare,
   async (req, res) => {
     try {
-      const userId = req.user.user._id;
+      const userId = req.user._id;
       const isAdmin = await checkAdminRole(userId);
       if (!isAdmin) {
         return res
