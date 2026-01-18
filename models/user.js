@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  username: {
+    type: String,
+    required: true,
+  },
   role: {
     type: String,
     enums: ["user", "admin"],
@@ -51,7 +55,7 @@ userSchema.index(
   {
     unique: true,
     partialFilterExpression: { role: "admin" },
-  }
+  },
 );
 
 const User = mongoose.model("user", userSchema);

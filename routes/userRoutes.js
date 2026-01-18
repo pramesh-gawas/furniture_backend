@@ -6,12 +6,13 @@ require("dotenv").config();
 
 router.post("/signup", async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password, role, username } = req.body;
 
     const UserProfile = new User({
       email,
       password,
       role,
+      username,
     });
 
     if (role === "admin") {
@@ -31,10 +32,10 @@ router.post("/signup", async (req, res) => {
       id: response.id,
       email: response.email,
       role: response.role,
+      username: response.username,
     };
     const token = generateToken(payload);
     res.status(200).json({
-      response: response,
       token: token,
       message: "User Registered Successfully",
     });
@@ -90,6 +91,7 @@ router.post("/signin", async (req, res) => {
         _id: user._id,
         email: user.email,
         role: user.role,
+        username: user.username,
       },
     };
 
