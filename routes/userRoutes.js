@@ -40,7 +40,6 @@ router.post("/signup", async (req, res) => {
       message: "User Registered Successfully",
     });
   } catch (error) {
-    console.log(error);
     if (error.name === "ValidationError") {
       const errors = Object.keys(error.errors).map(
         (key) => error.errors[key].message
@@ -73,7 +72,6 @@ router.post("/signup", async (req, res) => {
 router.post("/signin", async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(email.password);
     if (!email || !password) {
       return res
         .status(400)
@@ -81,7 +79,6 @@ router.post("/signin", async (req, res) => {
     }
 
     const user = await User.findOne({ email: email });
-    console.log(user);
 
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "invalid email or password" });
@@ -109,7 +106,6 @@ router.get("/profile", jwtAuthMiddleWare, async (req, res) => {
     const userData = req.user;
     const userId = userData.response._id;
     const user = await User.findById(userId).select("-password");
-    console.log(user);
     res.status(200).json({ user });
   } catch (err) {
     console.error(err);

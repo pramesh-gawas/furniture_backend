@@ -271,7 +271,7 @@ router.post("/checkout", jwtAuthMiddleWare, async (req, res) => {
         name: dbProduct.name,
         price: dbProduct.price,
         quantity: cartItem.quantity,
-        images: dbProduct.images[0],
+        // images: dbProduct.images[0],
       };
     });
     const tax = calculatedTotal * 0.1;
