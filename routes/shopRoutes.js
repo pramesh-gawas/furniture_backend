@@ -72,7 +72,25 @@ router.get("/productlist", async (req, res) => {
 
 router.get("/categories", async (req, res) => {
   try {
-    const categories = await Product.distinct("category");
+    const categories = await Product.aggregate([
+      {
+        $group: {
+          _id: "$category",
+          categoryImage: { $first: { $arrayElemAt: ["$images", 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          image: "$categoryImage",
+        },
+      },
+      {
+        $sort: { name: 1 },
+      },
+    ]);
+
     res.status(200).json({ success: true, response: categories });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
