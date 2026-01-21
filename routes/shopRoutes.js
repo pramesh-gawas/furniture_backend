@@ -260,56 +260,23 @@ router.get("/productdetail/:id", async (req, res) => {
   }
 });
 
-router.post("/checkout", jwtAuthMiddleWare, async (req, res) => {
+router.post("/create-payment-intent", async (req, res) => {
   try {
-    const { cartItems, shippingAddress } = req.body;
+    const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+    const { amount, email } = req.body;
 
-    if (!cartItems || cartItems.length === 0 || !shippingAddress) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required data" });
-    }
-
-    const userId = req.user._id;
-    const productIds = cartItems.map((item) => item?.product?._id);
-    const productsFromDb = await Product.find({ _id: { $in: productIds } });
-
-    let calculatedTotal = 0;
-    const orderItems = cartItems.map((cartItem) => {
-      const dbProduct = productsFromDb.find(
-        (p) => p._id.toString() === cartItem?.product?._id.toString(),
-      );
-
-      if (!dbProduct)
-        throw new Error(`Product ${cartItem.name} no longer exists`);
-
-      calculatedTotal += dbProduct.price * cartItem.quantity;
-      return {
-        product: dbProduct._id,
-        name: dbProduct.name,
-        price: dbProduct.price,
-        quantity: cartItem.quantity,
-        // images: dbProduct.images[0],
-      };
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount),
+      currency: "inr",
+      receipt_email: email,
+      automatic_payment_methods: { enabled: true },
     });
-    const tax = calculatedTotal * 0.1;
-    const finalTotal = calculatedTotal + tax;
-    const newOrder = new Order({
-      user: userId,
-      items: orderItems,
-      totalAmount: finalTotal,
-      shippingAddress: shippingAddress,
-      paymentStatus: "pending",
-    });
-    await newOrder.save();
 
     res.status(200).json({
-      success: true,
-      message: "Order placed successfully!",
-      orderId: newOrder._id,
+      clientSecret: paymentIntent.client_secret,
     });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
