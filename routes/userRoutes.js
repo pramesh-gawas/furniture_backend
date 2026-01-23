@@ -29,10 +29,12 @@ router.post("/signup", async (req, res) => {
     console.log("data saved");
 
     const payload = {
-      id: response.id,
-      email: response.email,
-      role: response.role,
-      username: response.username,
+      user: {
+        id: response.id,
+        email: response.email,
+        role: response.role,
+        username: response.username,
+      },
     };
     const token = generateToken(payload);
     res.status(200).json({
@@ -42,7 +44,7 @@ router.post("/signup", async (req, res) => {
   } catch (error) {
     if (error.name === "ValidationError") {
       const errors = Object.keys(error.errors).map(
-        (key) => error.errors[key].message
+        (key) => error.errors[key].message,
       );
       return res.status(400).json({ message: "Validation failed", errors });
     } else if (error.code === 11000) {
